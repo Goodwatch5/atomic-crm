@@ -29,20 +29,50 @@ const excludedLibFiles = [
 const testFilePattern = "**/*.{test,spec}.*";
 const storyFilePattern = "**/*.stories.*";
 
-const atomicCrmComponents = globSync(
+function globFiles(pattern, options) {
+  return globSync(pattern.split(path.sep).join("/"), options).map((file) =>
+    file.split(path.sep).join("/"),
+  );
+}
+
+function preserveFileOrder(existingFiles, generatedFiles) {
+  const generatedByPath = new Map(
+    generatedFiles.map((file) => [file.path, file]),
+  );
+  const orderedFiles = [];
+  const existingPaths = new Set();
+
+  for (const file of existingFiles) {
+    const generatedFile = generatedByPath.get(file.path);
+    if (generatedFile) {
+      orderedFiles.push(generatedFile);
+      existingPaths.add(file.path);
+    }
+  }
+
+  const newFiles = generatedFiles
+    .filter((file) => !existingPaths.has(file.path))
+    .sort((first, second) =>
+      first.path < second.path ? -1 : first.path > second.path ? 1 : 0,
+    );
+
+  return [...orderedFiles, ...newFiles];
+}
+
+const atomicCrmComponents = globFiles(
   path.join(atomicCrmComponentsPath, "**", "*.ts*"),
   { ignore: [testFilePattern, storyFilePattern] },
 );
-const supabaseComponents = globSync(
+const supabaseComponents = globFiles(
   path.join(supabaseComponentsPath, "**", "*.ts*"),
   { ignore: [testFilePattern, storyFilePattern] },
 );
-const hooks = globSync(path.join(hooksPath, "**", "*.ts*")).filter((hook) => {
-  return !excludedHooks.includes(path.basename(hook));
-});
-const libFiles = globSync(path.join(libPath, "**", "*.ts*")).filter((file) => {
-  return !excludedLibFiles.includes(path.basename(file));
-});
+const hooks = globFiles(path.join(hooksPath, "**", "*.ts*")).filter(
+  (hook) => !excludedHooks.includes(path.basename(hook)),
+);
+const libFiles = globFiles(path.join(libPath, "**", "*.ts*")).filter(
+  (file) => !excludedLibFiles.includes(path.basename(file)),
+);
 const changelogPath = "CHANGELOG.md";
 
 const registryContent = JSON.parse(fs.readFileSync(registryPath, "utf-8"));
@@ -85,7 +115,7 @@ const newRegistryContent = {
     if (item.name === "atomic-crm") {
       return {
         ...item,
-        files,
+        files: preserveFileOrder(item.files, files),
       };
     }
 
@@ -95,6 +125,6 @@ const newRegistryContent = {
 
 fs.writeFileSync(
   registryPath,
-  JSON.stringify(newRegistryContent, null, 2),
+  `${JSON.stringify(newRegistryContent, null, 2)}\n`,
   "utf-8",
 );

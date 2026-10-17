@@ -1,1 +1,4 @@
-make registry-gen
+#!/usr/bin/env sh
+set -e
+node ./scripts/generate-registry.mjs
+node ./node_modules/prettier/bin/prettier.cjs --config ./.prettierrc.json --write "registry.json"
